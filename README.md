@@ -1,67 +1,99 @@
-# Домашнее задание к занятию "`8-03_Zabbix_Часть 2`" - `Savin Aleksey`
+# Домашнее задание к занятию "`Disaster recovery и Keepalived`" - `Савин Алексей`
 
 ### Задание 1
-Создайте свой шаблон, в котором будут элементы данных, мониторящие загрузку CPU и RAM хоста.  
-
-**Процесс выполнения**  
-
-1. Выполняя ДЗ сверяйтесь с процессом отражённым в записи лекции.
-2. В веб-интерфейсе Zabbix Servera в разделе Templates создайте новый шаблон
-3. Создайте Item который будет собирать информацию об загрузке CPU в процентах
-4. Создайте Item который будет собирать информацию об загрузке RAM в процентах
-   
-**Требования к результату**  
- Прикрепите в файл README.md скриншот страницы шаблона с названием «Задание 1»  
+* Дана схема для Cisco Packet Tracer, рассматриваемая в лекции.
+* На данной схеме уже настроено отслеживание интерфейсов маршрутизаторов Gi0/1 (для нулевой группы)
+* Необходимо аналогично настроить отслеживание состояния интерфейсов Gi0/0 (для первой группы).
+* Для проверки корректности настройки, разорвите один из кабелей между одним из маршрутизаторов и Switch0 и запустите ping между PC0 и Server0.
+* На проверку отправьте получившуюся схему в формате pkt и скриншот, где виден процесс настройки маршрутизатора.  
 
 ### Решение 1
-![zabbix_template](https://github.com/AI-Savin/Netology_hw8.03/blob/main/img/zabbix_HW_template.png)    
+* [Схема](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/hsrp_advanced_savin.pkt) в формате pkt.  
+* Скриншот процесса настройки маршрутизатора:  
+![Router](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/router_VRRP.jpg)
+* Cкриншот отправки пакета на сервер и обратно при разорванной связи  
+![HSRP](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/HSRP.jpg)    
   
 ---
 
 ### Задание 2
-Добавьте в Zabbix два хоста и задайте им имена <фамилия и инициалы-1> и <фамилия и инициалы-2>. Например: ivanovii-1 и ivanovii-2.
+* Запустите две виртуальные машины Linux, установите и настройте сервис Keepalived как в лекции, используя пример конфигурационного файла.
+* Настройте любой веб-сервер (например, nginx или simple python server) на двух виртуальных машинах
+* Напишите Bash-скрипт, который будет проверять доступность порта данного веб-сервера и существование файла index.html в root-директории данного веб-сервера.
+* Настройте Keepalived так, чтобы он запускал данный скрипт каждые 3 секунды и переносил виртуальный IP на другой сервер, если bash-скрипт завершался с кодом, отличным от нуля (то есть порт веб-сервера был недоступен или отсутствовал index.html). Используйте для этого секцию vrrp_script
+* На проверку отправьте получившейся bash-скрипт и конфигурационный файл keepalived, а также скриншот с демонстрацией переезда плавающего ip на другой сервер в случае недоступности порта или файла index.html
 
-**Процесс выполнения**  
-1. Выполняя ДЗ сверяйтесь с процессом отражённым в записи лекции.
-2. Установите Zabbix Agent на 2 виртмашины, одной из них может быть ваш Zabbix Server
-3. Добавьте Zabbix Server в список разрешенных серверов ваших Zabbix Agentов
-4. Добавьте Zabbix Agentов в раздел Configuration > Hosts вашего Zabbix Servera
-5. Прикрепите за каждым хостом шаблон Linux by Zabbix Agent
-6. Проверьте что в разделе Latest Data начали появляться данные с добавленных агентов  
+### Решение 2
 
-**Требования к результату**  
- Результат данного задания сдавайте вместе с заданием 3  
+* изменил содержание дефолтной веб страницы на MASTER server nginx:
+```
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Server MASTER 192.168.3.16</h1>
+</body>
+</html>
+```
+* изменил содержание дефолтной веб страницы на BACKUP server nginx:
+```
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Server BACKUP 192.168.3.17</h1>
+</body>
+</html>
+```
+* bash-скрипт проверки доступности http хоста по порту 80 и проверки наличия index.html файла
+```
+#!/bin/bash
+if [[ $(netstat -tuln | grep LISTEN | grep :80) ]] && [[ -f /var/www/html/index.nginx-debian.html ]]; then
+   exit 0
+else
+   exit 1
+fi
+```
+* конфигурационный файл keepalived
+```
+vrrp_script check_script {
+      script "/home/user/check_nginx.sh"
+      interval 3
+      fall 2       # require 2 failures for KO
+      rise 2       # require 2 successes for OK
+}
 
- ---
+vrrp_instance VI_1 {
+        state MASTER
+        interface enp0s3
+        virtual_router_id 25
+        priority 255
+        advert_int 1
 
- ### Задание 3  
-Привяжите созданный шаблон к двум хостам. Также привяжите к обоим хостам шаблон Linux by Zabbix Agent.  
+        virtual_ipaddress {
+              192.168.3.25/24
+        }
 
-**Процесс выполнения**  
-1. Выполняя ДЗ сверяйтесь с процессом отражённым в записи лекции.
-2. Зайдите в настройки каждого хоста и в разделе Templates прикрепите к этому хосту ваш шаблон
-3. Так же к каждому хосту привяжите шаблон Linux by Zabbix Agent
-4. Проверьте что в раздел Latest Data начали поступать необходимые данные из вашего шаблона  
+        track_script {
+                   check_script
+                }
+}
+```
+* Проверил работу MASTER сервера
 
-**Требования к результату**  
- Прикрепите в файл README.md скриншот страницы хостов, где будут видны привязки шаблонов с названиями «Задание 2-3». Хосты должны иметь зелёный статус подключения  
+![master_server](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/master_server.jpg)  
+* Проверил доступность MASTER server по плавающему IP
 
- ### Решение 3
-![zabbix_template_hosts](https://github.com/AI-Savin/Netology_hw8.03/blob/main/img/zabbix_HW_template_hosts.png)  
+![master_server_floating](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/master_server_floating.jpg) 
 
- ---
- 
-### Задание 4  
-Создайте свой кастомный дашборд.  
+* скриншот наличия плавающего IP на сетевом интерфейсе MASTER сервера, с последующей остановкой **nginx** и проверкой отсутствия плавающего IP
 
-**Процесс выполнения**
-1. Выполняя ДЗ сверяйтесь с процессом отражённым в записи лекции.
-2. В разделе Dashboards создайте новый дашборд
-3. Разместите на нём несколько графиков на ваше усмотрение.  
+![master_stop](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/master_stop.jpg)  
 
-**Требования к результату**  
- Прикрепите в файл README.md скриншот дашборда с названием «Задание 4»  
+* скриншот появления плавающего IP на сетевом интерфейсе BACKUP сервера  
 
- ### Решение 4
+![backup_ip](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/backup_ip_a.jpg)  
 
-![zabbix_dashboard](https://github.com/AI-Savin/Netology_hw8.03/blob/main/img/zabbix_HW_dashboard.png)
+* скриншот достуности BACKUP сервера по плавающему IP
+
+![backup_floating](https://github.com/AI-Savin/netology_hw_keepalived/blob/main/img/Backup_floating.jpg)  
+
+
